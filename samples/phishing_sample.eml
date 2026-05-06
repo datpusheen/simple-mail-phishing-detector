@@ -1,0 +1,23 @@
+﻿From: security-alert@amaz0n-support.com
+Reply-To: phishing-attacker@malicious-domain.com
+To: victim@company.com
+Subject: URGENT: Your Amazon account has been suspended!
+Date: Wed, 15 Jan 2025 10:30:00 +0000
+Message-ID: <suspicious@amaz0n-support.com>
+
+Dear Valued Customer,
+
+We have detected suspicious activity on your Amazon account. Your account has been temporarily suspended for your protection.
+
+To restore access to your account, please verify your identity immediately by clicking the link below:
+
+https://amaz0n-verify-account.ru/secure/login.php?email=victim@company.com&redirect=true
+
+If you do not verify within 24 hours, your account will be permanently deleted.
+
+Security Notice: We take your account security very seriously. This is an automated message, please do not reply.
+
+Best regards,
+Amazon Security Team
+
+P.S. This is a very urgent matter requiring your immediate attention. Please do not ignore this message.
