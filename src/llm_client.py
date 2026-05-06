@@ -18,6 +18,7 @@ class LLMConfig:
     model: str = "gpt-4o-mini"
     temperature: float = 0.1
     max_tokens: int = 1000
+    token_parameter: str = "max_tokens"
     timeout: int = 30
 
 
@@ -75,7 +76,7 @@ class LLMClient:
             "model": self.config.model,
             "messages": messages,
             "temperature": self.config.temperature,
-            "max_tokens": self.config.max_tokens
+            self.config.token_parameter: self.config.max_tokens
         }
         
         headers = {
@@ -86,29 +87,45 @@ class LLMClient:
         url = f"{self.config.base_url}/chat/completions"
         
         try:
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(payload).encode('utf-8'),
-                headers=headers,
-                method='POST'
-            )
-            
-            with urllib.request.urlopen(req, timeout=self.config.timeout) as response:
-                result = json.loads(response.read().decode('utf-8'))
-                
-                return LLMResponse(
-                    content=result['choices'][0]['message']['content'],
-                    model=result.get('model', self.config.model),
-                    usage=result.get('usage', {}),
-                    latency_ms=0,
-                    raw_response=result
-                )
-                
+            result = self._post_json(url, payload, headers)
         except urllib.error.HTTPError as e:
             error_body = e.read().decode('utf-8')
-            raise Exception(f"Lỗi API LLM ({e.code}): {error_body}")
+            if (
+                e.code == 400
+                and "max_tokens" in error_body
+                and "max_completion_tokens" in error_body
+            ):
+                payload.pop("max_tokens", None)
+                payload["max_completion_tokens"] = self.config.max_tokens
+                try:
+                    result = self._post_json(url, payload, headers)
+                except urllib.error.HTTPError as retry_error:
+                    retry_body = retry_error.read().decode('utf-8')
+                    raise Exception(f"Lỗi API LLM ({retry_error.code}): {retry_body}")
+            else:
+                raise Exception(f"Lỗi API LLM ({e.code}): {error_body}")
         except urllib.error.URLError as e:
             raise Exception(f"Lỗi kết nối API LLM: {e.reason}")
+
+        return LLMResponse(
+            content=result['choices'][0]['message']['content'],
+            model=result.get('model', self.config.model),
+            usage=result.get('usage', {}),
+            latency_ms=0,
+            raw_response=result
+        )
+
+    def _post_json(self, url: str, payload: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
+        """Send JSON POST request and return parsed JSON."""
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode('utf-8'),
+            headers=headers,
+            method='POST'
+        )
+
+        with urllib.request.urlopen(req, timeout=self.config.timeout) as response:
+            return json.loads(response.read().decode('utf-8'))
     
     def _anthropic_complete(self, prompt: str, system_prompt: str = None) -> LLMResponse:
         """Anthropic API call"""
@@ -169,13 +186,20 @@ class LLMClientFactory:
             env_var = api_key[2:-1]
             api_key = os.environ.get(env_var, '')
         
+        token_parameter = api_config.get('token_parameter', 'max_tokens')
+        max_tokens = api_config.get('max_tokens', 1000)
+        if 'max_completion_tokens' in api_config:
+            token_parameter = 'max_completion_tokens'
+            max_tokens = api_config.get('max_completion_tokens', max_tokens)
+
         llm_config = LLMConfig(
             provider=config_dict.get('provider', 'openai'),
             base_url=api_config.get('base_url', 'https://api.openai.com/v1'),
             api_key=api_key,
             model=api_config.get('model', 'gpt-4o-mini'),
             temperature=api_config.get('temperature', 0.1),
-            max_tokens=api_config.get('max_tokens', 1000),
+            max_tokens=max_tokens,
+            token_parameter=token_parameter,
             timeout=api_config.get('timeout', 30)
         )
         
